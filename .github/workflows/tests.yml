@@ -1,0 +1,97 @@
+name: Test
+
+on:
+  push:
+    branches:
+      # Push will only build on branches that match this name
+      # Pull requests will override this, so pushes to pull requests will still build
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  test-coverage:
+
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: unit
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: unit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9.x"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Generate coverage report
+      env:
+        POSTGRES_DSN: postgres://unit:password@localhost:5432/unit
+      run: |
+        uv run pytest --cov=src/pogo_migrate --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: NRWLDev/pogo-core
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        yml: ./codecov.yml
+        fail_ci_if_error: false
+
+  test-python-versions:
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        version: ["3.9.x", "3.10.x", "3.11.x", "3.12.x"]
+
+    steps:
+    - uses: ikalnytskyi/action-setup-postgres@v6
+      with:
+        username: unit
+        password: password
+        database: unit
+        port: 5432
+      id: postgres
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Test with pytest
+      env:
+        POSTGRES_DSN: postgres://unit:password@localhost:5432/unit
+      run: |
+        uv run pytest
