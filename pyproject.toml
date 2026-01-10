@@ -1,6 +1,6 @@
 [project]
 name = "pogo-core"
-version = "0.0.0"
+version = "0.1.0"
 description = "Database migration tool for asyncpg"
 readme = "README.md"
 authors = [
@@ -58,7 +58,7 @@ dev = [
 ]
 
 [tool.changelog_gen]
-current_version = "0.0.0"
+current_version = "0.1.0"
 reject_empty = true
 allowed_branches = [
     "main",
