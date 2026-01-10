@@ -28,7 +28,7 @@ async def transaction(db: asyncpg.Connection, migration: Migration) -> t.AsyncIt
     try:
         yield
     except Exception:
-        if tr:
+        if tr:  # pragma: no cover
             await tr.rollback()
         raise
     else:

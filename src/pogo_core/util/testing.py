@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import typing
+import typing as t
 
 from pogo_core.util import migrate, sql
 
-if typing.TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from pathlib import Path
 
     import asyncpg

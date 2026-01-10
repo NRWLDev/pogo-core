@@ -4,6 +4,7 @@ import pathlib
 import asyncpg
 import pytest
 
+from pogo_core import types  # noqa: F401 Shut up test coverage on the imports in this module
 from pogo_core.migration import Migration
 from pogo_core.util import sql
 

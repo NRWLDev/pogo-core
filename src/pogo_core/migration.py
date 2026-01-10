@@ -154,19 +154,22 @@ class Migration:
             if spec:
                 module = importlib.util.module_from_spec(spec)
 
-                if spec.loader:
-                    try:
-                        spec.loader.exec_module(module)
-                    except Exception as e:
-                        msg = f"Could not import migration from '{self.path.name}'"
-                        raise error.BadMigrationError(msg) from e
-                    self._doc = (module.__doc__ or "").strip()
-                    depends_ = module.__depends__
-                    self._apply = module.apply
-                    self._rollback = module.rollback
-                    self._use_transaction = getattr(module, "__transaction__", True)
+                if not spec.loader:  # pragma: no cover
+                    msg = f"Could not import migration from '{self.path.name}': ModuleSpec has no loader attached"
+                    raise error.BadMigration(msg)
+
+                try:
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    msg = f"Could not import migration from '{self.path.name}'"
+                    raise error.BadMigrationError(msg) from e
+                self._doc = (module.__doc__ or "").strip()
+                depends_ = module.__depends__
+                self._apply = module.apply
+                self._rollback = module.rollback
+                self._use_transaction = getattr(module, "__transaction__", True)
             else:
-                msg = f"Could not import migration from '{self.path.name}': ModuleSpec has no loader attached"
+                msg = f"Could not import migration from '{self.path.name}': ModuleSpec not found"
                 raise error.BadMigrationError(msg)
 
         found_dependencies = {self.__migrations.get(mig_id) for mig_id in depends_}

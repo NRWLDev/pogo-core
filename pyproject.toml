@@ -107,6 +107,8 @@ skip_covered = true
 exclude_lines = [
     "# pragma: no cover",
     "if t.TYPE_CHECKING:",
+    "class .*\\btyping.Protocol\\):",
+    "class .*\\bProtocol\\):",
 ]
 
 [tool.coverage.run]

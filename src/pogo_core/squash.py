@@ -184,7 +184,8 @@ def parse_sqlglot(statement: str, logger: Logger | logging.Logger | None = None)
     logger = logger or logger_
     try:
         parsed = sqlglot.parse_one(statement, read="postgres", dialect="postgres")
-    except sqlglot.errors.ParseError as e:
+    except sqlglot.errors.ParseError as e:  # pragma: no cover
+        # This issue no longer occurs as sqlglot covers Locks. Keeping in case it returns for another syntax.
         r = r"(?P<msg>Expected table name but got) (<.*text: )?(?P<text>\w+)(, .*>)?\. Line (?P<line>\d+), Col: (?P<column>\d+)\.\n(?P<statement>.*)"
         m = re.match(r, str(e))
         msg = "{msg} {text}. Line: {line}, Column: {column}".format(**m.groupdict())
