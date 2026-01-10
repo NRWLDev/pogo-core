@@ -1,6 +1,6 @@
 [project]
 name = "pogo-core"
-version = "0.1.0"
+version = "0.0.0"
 description = "Database migration tool for asyncpg"
 readme = "README.md"
 authors = [
@@ -10,7 +10,7 @@ maintainers = [
     {name = "Daniel Edgecombe", email = "daniel@nrwl.co"},
 ]
 license = "Apache-2.0"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["migrations", "migrate", "database", "asyncpg", "yoyo"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -30,7 +30,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "sqlparse >= 0.5.2",
+    "sqlparse == 0.5.2",
     "sqlglot >= 25.19",
 ]
 
@@ -58,7 +58,7 @@ dev = [
 ]
 
 [tool.changelog_gen]
-current_version = "0.1.0"
+current_version = "0.0.0"
 reject_empty = true
 allowed_branches = [
     "main",
@@ -97,6 +97,7 @@ addopts = [
 env = [
     "D:POSTGRES_DSN=postgres://unit:password@localhost:5435/unit",
 ]
+markers = ["nosync: mark a test to not run pogo_ensure_sync helper"]
 
 [tool.coverage.report]
 sort = "cover"
