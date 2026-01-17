@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.1 (released 2026-01-17)
+
+### Features and Improvements
+
+- Support multiple schemas. [[2c5b8d3](https://github.com/NRWLDev/pogo-core/commit/2c5b8d3a92be02f349169cf1f9ed5eace874598a)]
+
 ## v0.1.0 (released 2026-01-10)
 
 ### Features and Improvements
