@@ -136,7 +136,7 @@ class TestReadSqlMigration:
             -- migrate: apply
             CREATE TABLE table_one();
             CREATE TABLE table_two();
-            CREATE TABLE public.user (
+            CREATE TABLE pogo.user (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 CONSTRAINT uc_name UNIQUE (name)
@@ -150,7 +150,7 @@ class TestReadSqlMigration:
             "CREATE TABLE table_one();",
             "CREATE TABLE table_two();",
             dedent("""\
-            CREATE TABLE public.user (
+            CREATE TABLE pogo.user (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 CONSTRAINT uc_name UNIQUE (name)
@@ -163,7 +163,7 @@ class TestReadSqlMigration:
             mock.call("CREATE TABLE table_two();"),
             mock.call(
                 dedent("""\
-            CREATE TABLE public.user (
+            CREATE TABLE pogo.user (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 CONSTRAINT uc_name UNIQUE (name)
@@ -182,11 +182,11 @@ class TestReadSqlMigration:
             -- migrate: apply
             CREATE TABLE table_one();
             CREATE TABLE table_two();
-            DROP TABLE public.user;
+            DROP TABLE pogo.user;
             -- migrate: rollback
             DROP TABLE table_two;
             DROP TABLE table_one;
-            CREATE TABLE public.user (
+            CREATE TABLE pogo.user (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 CONSTRAINT uc_name UNIQUE (name)
@@ -200,7 +200,7 @@ class TestReadSqlMigration:
             "DROP TABLE table_two;",
             "DROP TABLE table_one;",
             dedent("""\
-            CREATE TABLE public.user (
+            CREATE TABLE pogo.user (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 CONSTRAINT uc_name UNIQUE (name)
@@ -214,7 +214,7 @@ class TestReadSqlMigration:
             mock.call("DROP TABLE table_one;"),
             mock.call(
                 dedent("""\
-            CREATE TABLE public.user (
+            CREATE TABLE pogo.user (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 CONSTRAINT uc_name UNIQUE (name)
