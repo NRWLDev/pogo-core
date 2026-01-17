@@ -39,12 +39,13 @@ async def transaction(db: asyncpg.Connection, migration: Migration) -> t.AsyncIt
 async def apply(
     db: asyncpg.Connection,
     migrations_dir: Path,
+    *,
     schema_name: str,
     logger: Logger | logging.Logger | None = None,
 ) -> None:
     logger = logger or logger_
     await sql.ensure_pogo_sync(db)
-    migrations = await sql.read_migrations(migrations_dir, db, schema_name)
+    migrations = await sql.read_migrations(migrations_dir, db, schema_name=schema_name)
     migrations = topological_sort([m.load() for m in migrations])
 
     for migration in migrations:
@@ -54,7 +55,7 @@ async def apply(
                 logger.warning("Applying %s", migration.id)
                 async with transaction(db, migration):
                     await migration.apply(db)
-                    await sql.migration_applied(db, migration.id, migration.hash, schema_name)
+                    await sql.migration_applied(db, migration.id, migration.hash, schema_name=schema_name)
         except Exception as e:  # noqa: PERF203
             msg = f"Failed to apply {migration.id}"
             raise error.BadMigrationError(msg) from e
@@ -63,13 +64,14 @@ async def apply(
 async def rollback(
     db: asyncpg.Connection,
     migrations_dir: Path,
+    *,
     schema_name: str,
     count: int | None = None,
     logger: Logger | logging.Logger | None = None,
 ) -> None:
     logger = logger or logger_
     await sql.ensure_pogo_sync(db)
-    migrations = await sql.read_migrations(migrations_dir, db, schema_name)
+    migrations = await sql.read_migrations(migrations_dir, db, schema_name=schema_name)
     migrations = reversed(list(topological_sort([m.load() for m in migrations])))
 
     i = 0
@@ -81,7 +83,7 @@ async def rollback(
 
                 async with transaction(db, migration):
                     await migration.rollback(db)
-                    await sql.migration_unapplied(db, migration.id, schema_name)
+                    await sql.migration_unapplied(db, migration.id, schema_name=schema_name)
                     i += 1
         except Exception as e:  # noqa: PERF203
             msg = f"Failed to rollback {migration.id}"
