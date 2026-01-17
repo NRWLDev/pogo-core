@@ -27,7 +27,9 @@ def postgres_dsn():
 
 @pytest.fixture(autouse=True)
 async def db_session(request, postgres_dsn):
+    schema_name = "pogo"
     conn = await asyncpg.connect(postgres_dsn)
+    await conn.execute(f"SET search_path TO {schema_name}")
     tr = conn.transaction()
     await tr.start()
     if request.node.get_closest_marker("nosync") is None:

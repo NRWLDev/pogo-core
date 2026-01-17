@@ -17,6 +17,18 @@ async def assert_tables(db_session, tables):
     assert [r["tablename"] for r in results] == tables
 
 
+async def assert_schemas(db_session, schemas):
+    stmt = """
+    SELECT schema_name
+    FROM information_schema.schemata
+    WHERE  schema_name NOT IN ('pg_toast', 'pg_catalog', 'information_schema')
+    ORDER BY schema_name
+    """
+    results = await db_session.fetch(stmt)
+
+    assert [r["schema_name"] for r in results] == schemas
+
+
 @pytest.mark.nosync
 async def test_get_connection_syncs_tables(db_session, monkeypatch):
     monkeypatch.setattr(sql.asyncpg, "connect", mock.AsyncMock(return_value=db_session))
@@ -24,6 +36,16 @@ async def test_get_connection_syncs_tables(db_session, monkeypatch):
     db = await sql.get_connection(db_session)
 
     await assert_tables(db_session, ["_pogo_migration", "_pogo_version"])
+    assert db == db_session
+
+
+@pytest.mark.nosync
+async def test_get_connection_creates_schema(db_session, monkeypatch):
+    monkeypatch.setattr(sql.asyncpg, "connect", mock.AsyncMock(return_value=db_session))
+
+    db = await sql.get_connection(db_session, schema_name="unit", schema_create=True)
+
+    await assert_schemas(db_session, ["public", "unit"])
     assert db == db_session
 
 
@@ -58,9 +80,10 @@ async def test_migration_applied(db_session, schema):
         await db_session.execute(f"CREATE SCHEMA {schema}")
         await db_session.execute(f"SET search_path = '{schema}'")
 
-    await sql.migration_applied(db_session, "migration_id", "migration_hash")
+    schema = schema or "pogo"
+    await sql.migration_applied(db_session, "migration_id", "migration_hash", schema)
 
-    ids = await sql.get_applied_migrations(db_session)
+    ids = await sql.get_applied_migrations(db_session, schema)
     assert ids == {"migration_id"}
 
 
@@ -70,8 +93,24 @@ async def test_migration_unapplied(db_session, schema):
         await db_session.execute(f"CREATE SCHEMA {schema}")
         await db_session.execute(f"SET search_path = '{schema}'")
 
-    await sql.migration_applied(db_session, "migration_id", "migration_hash")
-    await sql.migration_unapplied(db_session, "migration_id")
+    schema = schema or "pogo"
 
-    ids = await sql.get_applied_migrations(db_session)
+    await sql.migration_applied(db_session, "migration_id", "migration_hash", schema)
+    await sql.migration_unapplied(db_session, "migration_id", schema)
+
+    ids = await sql.get_applied_migrations(db_session, schema)
     assert ids == set()
+
+
+async def test_create_schema(db_session):
+    await sql.create_schema(db_session, "unit")
+
+    await assert_schemas(db_session, ["public", "unit"])
+
+
+async def test_drop_schema(db_session):
+    await db_session.execute("CREATE SCHEMA unit")
+
+    await sql.drop_schema(db_session, "unit")
+
+    await assert_schemas(db_session, ["public"])
