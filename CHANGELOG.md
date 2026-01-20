@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.2 (released 2026-01-20)
+
+### Bug fixes
+
+- Expose schema parameter through testing module. [[7d29ba5](https://github.com/NRWLDev/pogo-core/commit/7d29ba5233ba2722f4ed2a65f03510d0edad5431)]
+
 ## v0.1.1 (released 2026-01-17)
 
 ### Features and Improvements
