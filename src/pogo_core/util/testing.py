@@ -10,27 +10,44 @@ if t.TYPE_CHECKING:
     import asyncpg
 
 
-async def apply(migrations: Path, db: asyncpg.Connection | None = None, database_dsn: str | None = None) -> None:
+async def apply(
+    migrations: Path,
+    *,
+    db: asyncpg.Connection | None = None,
+    database_dsn: str | None = None,
+    schema_name: str = "public",
+    schema_create: bool = False,
+) -> None:
     if db is None and database_dsn is None:
         msg = "One of db or database_dsn are required to apply migrations."
         raise ValueError(msg)
 
-    db_ = db if db is not None else await sql.get_connection(database_dsn)
+    db_ = (
+        db
+        if db is not None
+        else await sql.get_connection(database_dsn, schema_name=schema_name, schema_create=schema_create)
+    )
     try:
-        await migrate.apply(db_, migrations)
+        await migrate.apply(db_, migrations, schema_name=schema_name)
     finally:
         if db is None:
             await db_.close()
 
 
-async def rollback(migrations: Path, db: asyncpg.Connection | None = None, database_dsn: str | None = None) -> None:
+async def rollback(
+    migrations: Path,
+    *,
+    db: asyncpg.Connection | None = None,
+    database_dsn: str | None = None,
+    schema_name: str = "public",
+) -> None:
     if db is None and database_dsn is None:
         msg = "One of db or database_dsn are required to rollback migrations."
         raise ValueError(msg)
 
-    db_ = db if db is not None else await sql.get_connection(database_dsn)
+    db_ = db if db is not None else await sql.get_connection(database_dsn, schema_name=schema_name)
     try:
-        await migrate.rollback(db_, migrations)
+        await migrate.rollback(db_, migrations, schema_name=schema_name)
     finally:
         if db is None:
             await db_.close()
