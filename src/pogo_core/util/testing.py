@@ -25,7 +25,7 @@ async def apply(
     db_ = (
         db
         if db is not None
-        else await sql.get_connection(database_dsn, schema_name=schema_name, schema_create=schema_create)
+        else await sql.get_connection(database_dsn, schema_name=schema_name, schema_create=schema_create)  # type: ignore[invalid-argument-type]
     )
     try:
         await migrate.apply(db_, migrations, schema_name=schema_name)
@@ -45,7 +45,7 @@ async def rollback(
         msg = "One of db or database_dsn are required to rollback migrations."
         raise ValueError(msg)
 
-    db_ = db if db is not None else await sql.get_connection(database_dsn, schema_name=schema_name)
+    db_ = db if db is not None else await sql.get_connection(database_dsn, schema_name=schema_name)  # type: ignore[invalid-argument-type]
     try:
         await migrate.rollback(db_, migrations, schema_name=schema_name)
     finally:

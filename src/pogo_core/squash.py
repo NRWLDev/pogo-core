@@ -188,6 +188,7 @@ def parse_sqlglot(statement: str, logger: Logger | logging.Logger | None = None)
         # This issue no longer occurs as sqlglot covers Locks. Keeping in case it returns for another syntax.
         r = r"(?P<msg>Expected table name but got) (<.*text: )?(?P<text>\w+)(, .*>)?\. Line (?P<line>\d+), Col: (?P<column>\d+)\.\n(?P<statement>.*)"
         m = re.match(r, str(e))
+        m = t.cast("re.Match[str]", m)
         msg = "{msg} {text}. Line: {line}, Column: {column}".format(**m.groupdict())
         raise ParseError(msg) from e
 

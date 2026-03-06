@@ -81,7 +81,7 @@ def raise_cycle_error(ordering: dict[T, int], pqueue: list[tuple[int, T]], block
         msg = f"Dependency graph loop detected among {unresolved!r}"
         raise CycleError(
             msg,
-            sorted(unresolved, key=lambda x: ordering.get(x)),
+            sorted(unresolved, key=ordering.get),
         )
     msg = "raise_cycle_error called but no unresolved nodes exist"
     raise AssertionError(msg)

@@ -36,7 +36,7 @@ async def read_migrations(
     applied_migrations = await get_applied_migrations(db, schema_name=schema_name) if db else set()
     return [
         Migration(path.stem, path, applied_migrations)
-        for path in migrations_location.iterdir()
+        for path in migrations_location.iterdir()  # noqa: ASYNC240
         if path.suffix in {".py", ".sql"}
     ]
 

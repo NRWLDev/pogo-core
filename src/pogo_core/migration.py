@@ -156,7 +156,7 @@ class Migration:
 
                 if not spec.loader:  # pragma: no cover
                     msg = f"Could not import migration from '{self.path.name}': ModuleSpec has no loader attached"
-                    raise error.BadMigration(msg)
+                    raise error.BadMigrationError(msg)
 
                 try:
                     spec.loader.exec_module(module)
