@@ -31,7 +31,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "sqlparse == 0.5.2",
+    "sqlparse>=0.5.5,<1.0.0",
     "sqlglot >= 25.19",
 ]
 
