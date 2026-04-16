@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.3 (released 2026-04-16)
+
+### Bug fixes
+
+- Upgrade sqlparse and relax pin restraints. [[c22b34c](https://github.com/NRWLDev/pogo-core/commit/c22b34c870891eaaf7e445a69499dca2c568154f)]
+
+### Miscellaneous
+
+- Remove manual ty check in pipeline [[68af830](https://github.com/NRWLDev/pogo-core/commit/68af830f28f3aa585eec2d33410515e50369f956)]
+- Add ty pre-commit [[96fb113](https://github.com/NRWLDev/pogo-core/commit/96fb1132114b2eff11b71e5c30635f13dfd07f68)]
+- Update tooling, run type checks in pipeline and add py3.14 to pipeline tests [[2c7711e](https://github.com/NRWLDev/pogo-core/commit/2c7711ed443286377fe8bcc17661f881bef5ce96)]
+
 ## v0.1.2 (released 2026-01-20)
 
 ### Bug fixes
