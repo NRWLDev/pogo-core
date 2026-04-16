@@ -90,29 +90,26 @@ async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
     version = await db.fetchval(stmt)
 
     if version == 0:
-        stmt = """
-        ALTER TABLE public._pogo_migration
-        ADD COLUMN schema_name VARCHAR(64),      -- Host schema for this set of migrations.
-        DROP CONSTRAINT _pogo_migration_pkey;
-        """
-        await db.execute(stmt)
+        async with db.transaction():
+            # Add schema_name -- host schema for this set of migrations.
+            await db.execute(
+                "ALTER TABLE public._pogo_migration ADD COLUMN schema_name VARCHAR(64);",
+            )
 
-        stmt = """
-        UPDATE public._pogo_migration SET schema_name = 'public';
-        """
-        await db.execute(stmt)
+            await db.execute(
+                "UPDATE public._pogo_migration SET schema_name = 'public';",
+            )
 
-        stmt = """
-        ALTER TABLE public._pogo_migration
-        ALTER COLUMN schema_name SET NOT NULL,
-        ADD PRIMARY KEY (migration_hash, schema_name);
-        """
-        await db.execute(stmt)
+            await db.execute("""
+                ALTER TABLE public._pogo_migration
+                ALTER COLUMN schema_name SET NOT NULL,
+                DROP CONSTRAINT _pogo_migration_pkey,
+                ADD PRIMARY KEY (migration_hash, schema_name);
+            """)
 
-        stmt = """
-        INSERT INTO public._pogo_version (version, installed) VALUES (1, now());
-        """
-        await db.execute(stmt)
+            await db.execute(
+                "INSERT INTO public._pogo_version (version, installed) VALUES (1, now());",
+            )
 
 
 async def migration_applied(
