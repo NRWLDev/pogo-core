@@ -63,34 +63,36 @@ async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
     """
     r = await db.fetchrow(stmt)
     if r is not None and not r["exists"]:
-        stmt = """
-        CREATE TABLE public._pogo_migration (
-            migration_hash VARCHAR(64),  -- sha256 hash of the migration id
-            migration_id VARCHAR(255),   -- The migration id (ie path basename without extension)
-            applied TIMESTAMPTZ,         -- When this id was applied
-            PRIMARY KEY (migration_hash)
-        );
-        """
-        await db.execute(stmt)
-
-        stmt = """
-        CREATE TABLE public._pogo_version (
-            version INT NOT NULL PRIMARY KEY,
-            installed TIMESTAMPTZ
-        );
-        """
-        await db.execute(stmt)
-
-        stmt = """
-        INSERT INTO public._pogo_version (version, installed) VALUES (0, now());
-        """
-        await db.execute(stmt)
-
-    stmt = "SELECT version FROM public._pogo_version ORDER BY version DESC LIMIT 1;"
-    version = await db.fetchval(stmt)
-
-    if version == 0:
         async with db.transaction():
+            stmt = """
+            CREATE TABLE IF NOT EXISTS public._pogo_migration (
+                migration_hash VARCHAR(64),  -- sha256 hash of the migration id
+                migration_id VARCHAR(255),   -- The migration id (ie path basename without extension)
+                applied TIMESTAMPTZ,         -- When this id was applied
+                PRIMARY KEY (migration_hash)
+            );
+            """
+            await db.execute(stmt)
+
+            stmt = """
+            CREATE TABLE IF NOT EXISTS public._pogo_version (
+                version INT NOT NULL PRIMARY KEY,
+                installed TIMESTAMPTZ
+            );
+            """
+            await db.execute(stmt)
+
+            stmt = """
+            INSERT INTO public._pogo_version (version, installed) VALUES (0, now())
+            ON CONFLICT DO NOTHING;
+            """
+            await db.execute(stmt)
+
+    async with db.transaction():
+        stmt = "SELECT version FROM public._pogo_version ORDER BY version DESC LIMIT 1 FOR UPDATE;"
+        version = await db.fetchval(stmt)
+
+        if version == 0:
             # Add schema_name -- host schema for this set of migrations.
             await db.execute(
                 "ALTER TABLE public._pogo_migration ADD COLUMN schema_name VARCHAR(64);",

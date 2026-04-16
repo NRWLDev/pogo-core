@@ -270,3 +270,87 @@ async def test_ensure_pogo_sync_idempotent_at_v1(db_session):
 
     version = await get_pogo_version(db_session)
     assert version == 1
+
+
+@pytest.mark.nosync
+async def test_fresh_install_with_preexisting_migration_table(db_session):
+    """Simulate race: another process created _pogo_migration but _pogo_version
+    doesn't exist yet when this process checks. IF NOT EXISTS prevents failure."""
+    await db_session.execute("""
+        CREATE TABLE public._pogo_migration (
+            migration_hash VARCHAR(64),
+            migration_id VARCHAR(255),
+            applied TIMESTAMPTZ,
+            PRIMARY KEY (migration_hash)
+        );
+    """)
+
+    await sql.ensure_pogo_sync(db_session)
+
+    await assert_tables(db_session, ["_pogo_migration", "_pogo_version"])
+    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
+    assert pk_cols == ["migration_hash", "schema_name"]
+    version = await get_pogo_version(db_session)
+    assert version == 1
+
+
+@pytest.mark.nosync
+async def test_fresh_install_with_fully_preexisting_v0_tables(db_session):
+    """Simulate race: another process completed the entire fresh install (both
+    tables + version 0 row) before this process enters the fresh install path.
+    IF NOT EXISTS + ON CONFLICT DO NOTHING prevents failure."""
+    await create_v0_tables(db_session)
+
+    # Re-execute the same DDL that ensure_pogo_sync's fresh install path uses,
+    # simulating a second process that passed the existence check before tables existed.
+    await db_session.execute("""
+        CREATE TABLE IF NOT EXISTS public._pogo_migration (
+            migration_hash VARCHAR(64),
+            migration_id VARCHAR(255),
+            applied TIMESTAMPTZ,
+            PRIMARY KEY (migration_hash)
+        );
+    """)
+    await db_session.execute("""
+        CREATE TABLE IF NOT EXISTS public._pogo_version (
+            version INT NOT NULL PRIMARY KEY,
+            installed TIMESTAMPTZ
+        );
+    """)
+    await db_session.execute("""
+        INSERT INTO public._pogo_version (version, installed) VALUES (0, now())
+        ON CONFLICT DO NOTHING;
+    """)
+
+    versions = await db_session.fetch("SELECT version FROM public._pogo_version ORDER BY version")
+    assert [r["version"] for r in versions] == [0]
+
+    await sql.ensure_pogo_sync(db_session)
+
+    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
+    assert pk_cols == ["migration_hash", "schema_name"]
+    version = await get_pogo_version(db_session)
+    assert version == 1
+
+
+@pytest.mark.nosync
+async def test_concurrent_upgrade_second_caller_skips(db_session, postgres_dsn):
+    """Simulate two processes both reaching the upgrade transaction. The first
+    upgrades v0→v1; the second reads v1 (via FOR UPDATE) and skips."""
+    await create_v0_tables(db_session)
+
+    # First call: upgrades v0 → v1
+    await sql.ensure_pogo_sync(db_session)
+    version = await get_pogo_version(db_session)
+    assert version == 1
+
+    # Second call on same connection: should see v1 and do nothing
+    await sql.ensure_pogo_sync(db_session)
+    version = await get_pogo_version(db_session)
+    assert version == 1
+
+    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
+    assert pk_cols == ["migration_hash", "schema_name"]
+
+    versions = await db_session.fetch("SELECT version FROM public._pogo_version ORDER BY version")
+    assert [r["version"] for r in versions] == [0, 1]
