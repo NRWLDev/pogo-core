@@ -143,7 +143,10 @@ def parse(statement: str, logger: Logger | logging.Logger | None = None) -> Pars
             ],
         )
 
-        exists_idx, _token = parsed.token_next_by(idx=idx, m=(sqlparse.tokens.Keyword, "EXISTS"))
+        exists_idx, _token = parsed.token_next_by(
+            idx=idx,
+            m=[(sqlparse.tokens.Keyword, "IF EXISTS"), (sqlparse.tokens.Keyword, "IF NOT EXISTS")],
+        )
         if action.value == "INDEX":
             """
             Fetch tbl_ident from CREATE INDEX statements.
