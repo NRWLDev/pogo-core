@@ -53,16 +53,9 @@ async def get_applied_migrations(db: asyncpg.Connection, *, schema_name: str) ->
     return {r["migration_id"] for r in results}
 
 
-async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
-    stmt = """
-    SELECT exists (
-        SELECT FROM pg_tables
-        WHERE  schemaname = 'public'
-        AND    tablename  = '_pogo_version'
-    );
-    """
-    r = await db.fetchrow(stmt)
-    if r is not None and not r["exists"]:
+async def v0_upgrade(db: asyncpg.Connection) -> None:
+    """Create pogo tables in v0 schema (single-column PK, no schema_name)."""
+    async with db.transaction():
         stmt = """
         CREATE TABLE public._pogo_migration (
             migration_hash VARCHAR(64),  -- sha256 hash of the migration id
@@ -86,14 +79,13 @@ async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
         """
         await db.execute(stmt)
 
-    stmt = "SELECT version FROM public._pogo_version ORDER BY version DESC LIMIT 1;"
-    version = await db.fetchval(stmt)
 
-    if version == 0:
+async def v1_upgrade(db: asyncpg.Connection) -> None:
+    """Update pogo tables to v1 schema (multi-column PK, add schema_name)."""
+    async with db.transaction():
         stmt = """
         ALTER TABLE public._pogo_migration
-        ADD COLUMN schema_name VARCHAR(64),      -- Host schema for this set of migrations.
-        DROP CONSTRAINT _pogo_migration_pkey;
+        ADD COLUMN schema_name VARCHAR(64);      -- Host schema for this set of migrations.
         """
         await db.execute(stmt)
 
@@ -105,6 +97,7 @@ async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
         stmt = """
         ALTER TABLE public._pogo_migration
         ALTER COLUMN schema_name SET NOT NULL,
+        DROP CONSTRAINT _pogo_migration_pkey,
         ADD PRIMARY KEY (migration_hash, schema_name);
         """
         await db.execute(stmt)
@@ -113,6 +106,34 @@ async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
         INSERT INTO public._pogo_version (version, installed) VALUES (1, now());
         """
         await db.execute(stmt)
+
+
+async def get_pogo_version(db: asyncpg.Connection) -> int | None:
+    stmt = """
+    SELECT exists (
+        SELECT FROM pg_tables
+        WHERE  schemaname = 'public'
+        AND    tablename  = '_pogo_version'
+    );
+    """
+    r = await db.fetchrow(stmt)
+    if r is not None and not r["exists"]:
+        return None
+
+    stmt = "SELECT version FROM public._pogo_version ORDER BY version DESC LIMIT 1;"
+    return await db.fetchval(stmt)
+
+
+async def ensure_pogo_sync(db: asyncpg.Connection) -> None:
+    version = await get_pogo_version(db)
+
+    if version is None:
+        await v0_upgrade(db)
+        version = 0
+
+    if version == 0:
+        await v1_upgrade(db)
+        version = 1
 
 
 async def migration_applied(
