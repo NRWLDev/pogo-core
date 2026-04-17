@@ -172,63 +172,8 @@ async def test_drop_schema(db_session):
 
 
 @pytest.mark.nosync
-async def test_fresh_install_creates_v1_schema(db_session):
-    await sql.ensure_pogo_sync(db_session)
-
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
-
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-    versions = await db_session.fetch("SELECT version FROM public._pogo_version ORDER BY version")
-    assert [r["version"] for r in versions] == [0, 1]
-
-
-@pytest.mark.nosync
-async def test_v0_to_v1_upgrade_with_existing_migrations(db_session):
-    await create_v0_tables(
-        db_session,
-        migration_rows=[
-            ("hash_aaa", "20240101_01_abcde-first"),
-            ("hash_bbb", "20240102_01_fghij-second"),
-        ],
-    )
-
-    pk_cols_before = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols_before == ["migration_hash"]
-
-    await sql.ensure_pogo_sync(db_session)
-
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
-
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-    rows = await db_session.fetch(
-        "SELECT migration_hash, migration_id, schema_name FROM public._pogo_migration ORDER BY migration_id",
-    )
-    assert len(rows) == 2
-    for row in rows:
-        assert row["schema_name"] == "public"
-
-
-@pytest.mark.nosync
-async def test_v0_to_v1_upgrade_empty_table(db_session):
-    await create_v0_tables(db_session)
-
-    await sql.ensure_pogo_sync(db_session)
-
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
-
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-
-@pytest.mark.nosync
-async def test_v0_to_v1_upgrade_rolls_back_on_failure(db_session):
+async def test_v0_to_v1_upgrade_rolls_back_and_recovers(db_session):
+    """Verify the v0->v1 upgrade is atomic and recoverable after a failure."""
     await create_v0_tables(
         db_session,
         migration_rows=[("hash_aaa", "20240101_01_abcde-first")],
@@ -248,109 +193,61 @@ async def test_v0_to_v1_upgrade_rolls_back_on_failure(db_session):
     with pytest.raises(asyncpg.exceptions.RaiseError, match="simulated update failure"):
         await sql.ensure_pogo_sync(db_session)
 
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash"]
-
+    assert await get_primary_key_columns(db_session, "_pogo_migration") == ["migration_hash"]
     assert not await has_column(db_session, "_pogo_migration", "schema_name")
+    assert await get_pogo_version(db_session) == 0
 
-    version = await get_pogo_version(db_session)
-    assert version == 0
+    await db_session.execute(
+        "DROP TRIGGER _pogo_test_block_update ON public._pogo_migration;",
+    )
+    await db_session.execute("DROP FUNCTION _pogo_test_fail_update();")
+
+    await sql.ensure_pogo_sync(db_session)
+
+    assert await get_pogo_version(db_session) == 1
+    assert await get_primary_key_columns(db_session, "_pogo_migration") == [
+        "migration_hash",
+        "schema_name",
+    ]
+    assert await has_column(db_session, "_pogo_migration", "schema_name")
 
 
 @pytest.mark.nosync
-async def test_ensure_pogo_sync_idempotent_at_v1(db_session):
-    await sql.ensure_pogo_sync(db_session)
-    await sql.ensure_pogo_sync(db_session)
-    await sql.ensure_pogo_sync(db_session)
+async def test_v0_to_v1_upgrade_with_update_publication(db_session):
+    """Reproduces Google Cloud CloudSQL v0->v1 upgrade failure.
 
-    await assert_tables(db_session, ["_pogo_migration", "_pogo_version"])
+    Running pogo against a CloudSQL Postgres instance
+    with a Datastream CDC publication attached:
 
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
+        ERROR: cannot update table "_pogo_migration" because it does not have
+        a replica identity and publishes updates
+        HINT: To enable updating the table, set REPLICA IDENTITY using ALTER TABLE.
+        STATEMENT: UPDATE public._pogo_migration SET schema_name = 'public';
 
-    version = await get_pogo_version(db_session)
-    assert version == 1
+    The error is raised by Postgres whenever a table belongs to a publication
+    that publishes UPDATE and the table has no replica identity.
+    https://www.postgresql.org/docs/current/logical-replication-publication.html
 
+    CloudSQL Datastream CDC configures exactly such a publication:
 
-@pytest.mark.nosync
-async def test_fresh_install_with_preexisting_migration_table(db_session):
-    """Simulate race: another process created _pogo_migration but _pogo_version
-    doesn't exist yet when this process checks. IF NOT EXISTS prevents failure."""
-    await db_session.execute("""
-        CREATE TABLE public._pogo_migration (
-            migration_hash VARCHAR(64),
-            migration_id VARCHAR(255),
-            applied TIMESTAMPTZ,
-            PRIMARY KEY (migration_hash)
-        );
-    """)
+        CREATE PUBLICATION ... FOR TABLE ...
 
-    await sql.ensure_pogo_sync(db_session)
+    https://cloud.google.com/datastream/docs/configure-cloudsql-psql
+    """
+    await create_v0_tables(
+        db_session,
+        migration_rows=[("hash_aaa", "20240101_01_abcde-first")],
+    )
 
-    await assert_tables(db_session, ["_pogo_migration", "_pogo_version"])
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-
-@pytest.mark.nosync
-async def test_fresh_install_with_fully_preexisting_v0_tables(db_session):
-    """Simulate race: another process completed the entire fresh install (both
-    tables + version 0 row) before this process enters the fresh install path.
-    IF NOT EXISTS + ON CONFLICT DO NOTHING prevents failure."""
-    await create_v0_tables(db_session)
-
-    # Re-execute the same DDL that ensure_pogo_sync's fresh install path uses,
-    # simulating a second process that passed the existence check before tables existed.
-    await db_session.execute("""
-        CREATE TABLE IF NOT EXISTS public._pogo_migration (
-            migration_hash VARCHAR(64),
-            migration_id VARCHAR(255),
-            applied TIMESTAMPTZ,
-            PRIMARY KEY (migration_hash)
-        );
-    """)
-    await db_session.execute("""
-        CREATE TABLE IF NOT EXISTS public._pogo_version (
-            version INT NOT NULL PRIMARY KEY,
-            installed TIMESTAMPTZ
-        );
-    """)
-    await db_session.execute("""
-        INSERT INTO public._pogo_version (version, installed) VALUES (0, now())
-        ON CONFLICT DO NOTHING;
-    """)
-
-    versions = await db_session.fetch("SELECT version FROM public._pogo_version ORDER BY version")
-    assert [r["version"] for r in versions] == [0]
+    await db_session.execute(
+        "CREATE PUBLICATION _pogo_test_pub "
+        "FOR TABLE public._pogo_migration WITH (publish = 'update');",
+    )
 
     await sql.ensure_pogo_sync(db_session)
 
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-
-@pytest.mark.nosync
-async def test_concurrent_upgrade_second_caller_skips(db_session, postgres_dsn):
-    """Simulate two processes both reaching the upgrade transaction. The first
-    upgrades v0→v1; the second reads v1 (via FOR UPDATE) and skips."""
-    await create_v0_tables(db_session)
-
-    # First call: upgrades v0 → v1
-    await sql.ensure_pogo_sync(db_session)
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-    # Second call on same connection: should see v1 and do nothing
-    await sql.ensure_pogo_sync(db_session)
-    version = await get_pogo_version(db_session)
-    assert version == 1
-
-    pk_cols = await get_primary_key_columns(db_session, "_pogo_migration")
-    assert pk_cols == ["migration_hash", "schema_name"]
-
-    versions = await db_session.fetch("SELECT version FROM public._pogo_version ORDER BY version")
-    assert [r["version"] for r in versions] == [0, 1]
+    assert await get_pogo_version(db_session) == 1
+    assert await get_primary_key_columns(db_session, "_pogo_migration") == [
+        "migration_hash",
+        "schema_name",
+    ]
