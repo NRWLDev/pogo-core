@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.4 (released 2026-04-17)
+
+### Bug fixes
+
+- Wrap internal migrations in transactions to handle errors. [[4](https://github.com/NRWLDev/pogo-core/issues/4)] [[2bcb471](https://github.com/NRWLDev/pogo-core/commit/2bcb47118f58e4e56b57a3ccb537a022604a5305)]
+
 ## v0.1.3 (released 2026-04-16)
 
 ### Bug fixes
