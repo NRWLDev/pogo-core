@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.5 (released 2026-09-21)
+
+### Features and Improvements
+
+- Support packages defining pogo plugins to provide additional schema management. [[f5a33bd](https://github.com/NRWLDev/pogo-core/commit/f5a33bd695f1a9727604ff004abee7efea1eddbe)]
+
 ## v0.1.4 (released 2026-04-17)
 
 ### Bug fixes
