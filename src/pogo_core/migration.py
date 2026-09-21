@@ -90,11 +90,12 @@ def read_sql_migration(  # noqa: C901
 class Migration:
     __migrations: t.ClassVar[dict[str, Migration]] = {}
 
-    def __init__(self, mig_id: str, path: Path, applied_migrations: set[str] | None) -> None:
+    def __init__(self, mig_id: str, path: Path, applied_migrations: set[str] | None, plugin: str = "") -> None:
         applied_migrations = applied_migrations or set()
         self.id = mig_id
         self.path = path
         self.hash: str = hashlib.sha256(mig_id.encode("utf-8")).hexdigest()
+        self.plugin = plugin
         self._use_transaction: bool = True
         self._doc: str | None = None
         self._depends: set[Migration] | None = None

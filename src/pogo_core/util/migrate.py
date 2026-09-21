@@ -42,10 +42,11 @@ async def apply(
     *,
     schema_name: str,
     logger: Logger | logging.Logger | None = None,
+    include_plugins: bool = False,
 ) -> None:
     logger = logger or logger_
     await sql.ensure_pogo_sync(db)
-    migrations = await sql.read_migrations(migrations_dir, db, schema_name=schema_name)
+    migrations = await sql.read_migrations(migrations_dir, db, schema_name=schema_name, include_plugins=include_plugins)
     migrations = topological_sort([m.load() for m in migrations])
 
     for migration in migrations:
@@ -61,17 +62,18 @@ async def apply(
             raise error.BadMigrationError(msg) from e
 
 
-async def rollback(
+async def rollback(  # noqa: PLR0913
     db: asyncpg.Connection,
     migrations_dir: Path,
     *,
     schema_name: str,
     count: int | None = None,
     logger: Logger | logging.Logger | None = None,
+    include_plugins: bool = False,
 ) -> None:
     logger = logger or logger_
     await sql.ensure_pogo_sync(db)
-    migrations = await sql.read_migrations(migrations_dir, db, schema_name=schema_name)
+    migrations = await sql.read_migrations(migrations_dir, db, schema_name=schema_name, include_plugins=include_plugins)
     migrations = reversed(list(topological_sort([m.load() for m in migrations])))
 
     i = 0
