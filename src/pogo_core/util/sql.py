@@ -5,6 +5,7 @@ import typing as t
 import asyncpg
 
 from pogo_core.migration import Migration
+from pogo_core.util import plugins
 
 if t.TYPE_CHECKING:
     from pathlib import Path
@@ -32,13 +33,29 @@ async def read_migrations(
     db: asyncpg.Connection | None,
     *,
     schema_name: str,
+    plugin: str = "",
+    include_plugins: bool = False,
 ) -> list[Migration]:
     applied_migrations = await get_applied_migrations(db, schema_name=schema_name) if db else set()
-    return [
-        Migration(path.stem, path, applied_migrations)
+
+    migrations = [
+        Migration(path.stem, path, applied_migrations, plugin=plugin)
         for path in migrations_location.iterdir()  # noqa: ASYNC240
         if path.suffix in {".py", ".sql"}
     ]
+
+    if include_plugins:
+        plugins_ = plugins.discover_migrations()
+        for plugin_name, plugin_ in plugins_:
+            migrations_ = await read_migrations(
+                plugin_.migrations,
+                db,
+                schema_name=plugin_.schema or schema_name,
+                plugin=plugin_name,
+            )
+            migrations.extend(migrations_)
+
+    return migrations
 
 
 async def get_applied_migrations(db: asyncpg.Connection, *, schema_name: str) -> set[str]:

@@ -1,9 +1,54 @@
+import sys
+from importlib.metadata import EntryPoint
 from unittest import mock
 
 import pytest
 
 from pogo_core import error
-from pogo_core.util import migrate, sql
+from pogo_core.util import migrate, plugins, sql
+
+
+@pytest.fixture
+def package(cwd):
+    p = cwd / "package"
+    p.mkdir()
+
+    with (p / "pogo.py").open("w") as f:
+        f.write("""
+from pathlib import Path
+
+from pogo_core.util.plugins import Plugin
+
+plugin = Plugin(Path(__file__).parent / "migrations")
+""")
+
+    sys.path.insert(0, str(cwd))
+    return p
+
+
+@pytest.fixture
+def package_migrations(package):
+    p = package / "migrations"
+    p.mkdir()
+
+    return p
+
+
+@pytest.fixture
+def _package_migration_one(package_migrations):
+    p = package_migrations / "20250317_01_abcde-initial-migration.sql"
+
+    with p.open("w") as f:
+        f.write("""
+-- initial migration
+-- depends:
+
+-- migrate: apply
+CREATE TABLE package_table_one();
+
+-- migrate: rollback
+DROP TABLE package_table_one;
+""")
 
 
 @pytest.fixture
@@ -153,6 +198,26 @@ class TestApply(Base):
             ["public._pogo_migration", "public._pogo_version", "public.table_one", "public.table_two"],
         )
         assert str(e.value) == "Failed to apply 20240318_01_12345-broken-apply"
+
+    @pytest.mark.usefixtures("_migration_two", "_package_migration_one")
+    async def test_package_migrations_applied(self, migrations, db_session, monkeypatch):
+        monkeypatch.setattr(
+            plugins,
+            "entry_points",
+            mock.Mock(return_value=[EntryPoint(name="name", group=None, value="package.pogo")]),
+        )
+        await migrate.apply(db_session, migrations, schema_name="public", include_plugins=True)
+
+        await self.assert_tables(
+            db_session,
+            [
+                "public._pogo_migration",
+                "public._pogo_version",
+                "public.package_table_one",
+                "public.table_one",
+                "public.table_two",
+            ],
+        )
 
 
 class TestRollback(Base):

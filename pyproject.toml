@@ -124,6 +124,7 @@ output-format = "concise"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
+    "CPY",
     "D",
     "FIX",
     "TD003",
