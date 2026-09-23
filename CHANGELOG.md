@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.6 (released 2026-09-23)
+
+### Bug fixes
+
+- Promote asyncpg minimum pin to a core dependency, as it is used in code. [[78355e2](https://github.com/NRWLDev/pogo-core/commit/78355e25bfe88cf984961ef7290f6f5b0b1a6273)]
+
 ## v0.1.5 (released 2026-09-21)
 
 ### Features and Improvements
